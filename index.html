@@ -35,11 +35,11 @@
   button.toggle.on{background:var(--zero); border-color:var(--zero); color:#04140a; font-weight:600;}
   input[type=range]{width:150px; accent-color:var(--accent);}
 
-  /* сегментный переключатель лада */
-  .seg{display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden;}
-  .seg button{border:none; border-radius:0; padding:6px 16px; background:var(--panel); color:var(--muted); font-weight:700;}
-  .seg button[data-scale=minor].active{background:var(--neg); color:#fff;}
-  .seg button[data-scale=major].active{background:var(--pos); color:#fff;}
+  /* кнопки лада над крайними клавишами (−5 слева, +5 справа) */
+  .ladrow{display:flex; justify-content:space-between; align-items:stretch; gap:6px;}
+  .ladbtn{min-width:104px; padding:9px 14px; font-weight:700; color:var(--muted); border-radius:11px;}
+  .ladbtn[data-scale=minor].active{background:var(--neg); border-color:var(--neg); color:#fff;}
+  .ladbtn[data-scale=major].active{background:var(--pos); border-color:var(--pos); color:#fff;}
 
   .display{
     display:flex; gap:14px; justify-content:center; align-items:center;
@@ -146,13 +146,6 @@
 
 <div class="controls">
   <div class="ctl">
-    <label>Лад</label>
-    <div class="seg" id="ladSeg">
-      <button data-scale="minor" class="active">Минор</button>
-      <button data-scale="major">Мажор</button>
-    </div>
-  </div>
-  <div class="ctl">
     <label>Тональность</label>
     <select id="rootSel"></select>
   </div>
@@ -180,6 +173,10 @@
 </div>
 
 <div class="stage">
+  <div class="ladrow">
+    <button class="ladbtn active" data-scale="minor">Минор</button>
+    <button class="ladbtn" data-scale="major">Мажор</button>
+  </div>
   <div class="row top" id="rowTop"></div>
   <div class="row bottom" id="rowBottom"></div>
 </div>
@@ -356,7 +353,7 @@
     const oldMidi=indexToMidi(currentIndex);
     BLUES=SCALES[name]; settings.scale=name;
     currentIndex=clampIndex(nearestIndex(oldMidi));
-    for(const b of ladSeg.querySelectorAll("button")) b.classList.toggle("active", b.dataset.scale===name);
+    for(const b of document.querySelectorAll(".ladbtn")) b.classList.toggle("active", b.dataset.scale===name);
     updateDisplay();
   }
 
@@ -569,8 +566,7 @@
     accBtn.classList.remove("on"); accBtn.textContent="▶ Бэк-трек"; }
 
   /* ---------- Контролы ---------- */
-  const ladSeg=document.getElementById("ladSeg");
-  for(const b of ladSeg.querySelectorAll("button"))
+  for(const b of document.querySelectorAll(".ladbtn"))
     b.addEventListener("pointerdown",e=>{e.preventDefault();initAudio();resumeAudio();setScale(b.dataset.scale);});
 
   const rootSel=document.getElementById("rootSel");
