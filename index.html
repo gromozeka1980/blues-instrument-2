@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Блюз-инструмент</title>
+<title>Блюз-инструмент 2</title>
 <style>
   :root{
     --bg:#0d1117; --panel:#161b22; --line:#222b36;
@@ -23,7 +23,7 @@
   h1 small{color:var(--muted); font-weight:400;}
 
   .controls{
-    display:flex; flex-wrap:wrap; gap:6px 16px; justify-content:center;
+    display:flex; flex-wrap:wrap; gap:6px 14px; justify-content:center; align-items:flex-end;
     padding:6px 12px;
   }
   .ctl{display:flex; flex-direction:column; gap:2px;}
@@ -33,23 +33,28 @@
     border-radius:8px; padding:6px 10px; font-size:13px; cursor:pointer;
   }
   button.toggle.on{background:var(--zero); border-color:var(--zero); color:#04140a; font-weight:600;}
-  input[type=range]{width:108px; accent-color:var(--accent);}
+  input[type=range]{width:150px; accent-color:var(--accent);}
+
+  /* сегментный переключатель лада */
+  .seg{display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden;}
+  .seg button{border:none; border-radius:0; padding:6px 16px; background:var(--panel); color:var(--muted); font-weight:700;}
+  .seg button[data-scale=minor].active{background:var(--neg); color:#fff;}
+  .seg button[data-scale=major].active{background:var(--pos); color:#fff;}
 
   .display{
     display:flex; gap:14px; justify-content:center; align-items:center;
-    padding:4px 12px 8px; min-height:46px;
+    padding:4px 12px 8px; min-height:44px;
   }
-  .note{font-size:30px; font-weight:700; min-width:70px; text-align:center;
+  .note{font-size:28px; font-weight:700; min-width:64px; text-align:center;
         text-shadow:0 0 18px rgba(255,212,59,.3);}
   .role{font-size:14px; color:var(--muted); text-align:left; line-height:1.3;}
-  .role b{color:var(--text);}
   .role .tip{color:var(--accent); font-weight:600;}
   .role .tip.blue{color:var(--blue);}
 
   .stage{flex:1; display:flex; flex-direction:column; gap:6px; padding:4px 10px 10px;}
   .row{display:flex; gap:6px;}
-  .row.top{height:clamp(64px,15vh,118px); flex:none;}
-  .row.bottom{flex:1; min-height:clamp(116px,30vh,230px);}
+  .row.top{height:clamp(74px,16vh,128px); flex:none;}
+  .row.bottom{flex:1; min-height:clamp(120px,30vh,230px);}
 
   .key{
     flex:1 1 0; min-width:0; border-radius:14px; border:1px solid var(--line);
@@ -59,12 +64,16 @@
     transition:transform .05s, box-shadow .12s, background .12s;
   }
   .key .off{font-weight:800; line-height:1;}
-  .row.bottom .key .off{font-size:clamp(26px,7vw,50px);}
-  .row.top .key .off{font-size:clamp(15px,4vw,28px); font-weight:700;}
+  .row.bottom .key .off{font-size:clamp(24px,6vw,46px);}
+  .row.top .key .off{font-size:clamp(14px,3.6vw,26px); font-weight:700;}
+  .key .lead{color:var(--muted); white-space:nowrap; line-height:1.1; margin-top:3px;}
+  .row.bottom .key .lead{font-size:clamp(11px,2.6vw,15px);}
+  .row.top .key .lead{font-size:clamp(8px,2.2vw,12px);}
+  .key.zero .lead{color:#9fe0ab;}
   .key .kb{position:absolute; top:6px; font-size:10px; color:var(--muted);
            border:1px solid var(--line); border-radius:5px; padding:0 5px; min-width:16px; text-align:center;}
-  .key .arrow{position:absolute; bottom:6px; font-size:13px; color:var(--accent); opacity:0; transition:opacity .15s;}
-  .key.canbend .arrow{opacity:.5;}
+  .key .arrow{position:absolute; bottom:5px; font-size:13px; color:var(--accent); opacity:0; transition:opacity .15s;}
+  .key.canbend .arrow{opacity:.45;}
 
   .key.neg{border-color:rgba(59,91,219,.4);}
   .key.pos{border-color:rgba(232,89,12,.4);}
@@ -73,57 +82,79 @@
   .key.neg.active{background:linear-gradient(180deg,#3b5bdb,#27409c); box-shadow:0 0 26px rgba(59,91,219,.6);}
   .key.pos.active{background:linear-gradient(180deg,#e8590c,#a8430a); box-shadow:0 0 26px rgba(232,89,12,.6);}
   .key.zero.active{background:linear-gradient(180deg,#2f9e44,#1f6e30); box-shadow:0 0 26px rgba(47,158,68,.6);}
-  /* индикатор бенда — заливка снизу вверх */
   .key .bendfill{position:absolute; left:0; right:0; bottom:0; height:calc(var(--bend,0)*100%);
                  background:linear-gradient(0deg, rgba(255,212,59,.55), rgba(255,212,59,0)); pointer-events:none;}
   .key.bending{box-shadow:0 0 30px rgba(255,212,59,.7) !important;}
   .key.bending .arrow{opacity:1; color:#fff;}
   .key.bent{box-shadow:0 0 36px var(--accent) !important; border-color:var(--accent) !important;}
-  .key.bent .arrow{content:""; opacity:1; color:var(--accent);}
-  .key.nobend .arrow{opacity:0 !important;}   /* эту ноту тянуть не стоит */
+  .key.bent .arrow{opacity:1; color:var(--accent);}
+  .key.nobend .arrow{opacity:0 !important;}
 
   .extra{display:flex; gap:8px; justify-content:center; padding:0 12px 6px; flex-wrap:wrap;}
-  .extra .key{flex:0 0 auto; min-width:88px; max-width:130px; height:42px; border-radius:10px;}
+  .extra .key{flex:0 0 auto; min-width:88px; max-width:130px; height:40px; border-radius:10px;}
   .extra .key .off{font-size:13px; font-weight:600;}
 
   .hint{color:var(--muted); font-size:11px; text-align:center; padding:0 12px 8px;}
 
-  #overlay{
-    position:fixed; inset:0; background:rgba(5,8,12,.94); display:flex;
-    flex-direction:column; align-items:center; justify-content:center; gap:16px;
-    z-index:10; text-align:center; padding:22px;
+  /* модалки */
+  #overlay,#settings{
+    position:fixed; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; padding:22px; z-index:10;
   }
+  #overlay{background:rgba(5,8,12,.94); gap:16px; text-align:center;}
   #overlay h2{font-size:24px; margin:0;}
   #overlay p{color:var(--muted); max-width:460px; line-height:1.55; margin:0; font-size:15px;}
   #overlay p b{color:var(--text);}
   #overlay button{font-size:19px; padding:15px 34px; background:var(--zero); border-color:var(--zero); color:#04140a; font-weight:700;}
+
+  #settings{background:rgba(5,8,12,.82); z-index:9;}
+  #settings.hidden,#overlay.hidden{display:none;}
+  .sheet{background:var(--panel); border:1px solid var(--line); border-radius:16px;
+         padding:18px 20px; width:min(440px,100%); display:flex; flex-direction:column; gap:14px;}
+  .sheet h3{margin:0 0 4px; font-size:18px;}
+  .srow{display:flex; align-items:center; justify-content:space-between; gap:14px; font-size:13px;}
+  .srow label{color:var(--muted);}
+  .srow .val{color:var(--text); min-width:42px; text-align:right;}
+  #closeSettings{align-self:flex-end; background:var(--zero); border-color:var(--zero); color:#04140a; font-weight:700; padding:9px 22px;}
 </style>
 </head>
 <body>
 <div id="overlay">
   <h2>🎸 Блюз за минуту</h2>
-  <p>Жми любые клавиши — <b>промахнуться невозможно</b>, всё звучит как блюз. Большие нижние клавиши — обычные ходы, верхние — прыжки подальше.</p>
-  <p><b>Тяни ноту вверх</b> (мышью/пальцем) или держи <b>Shift</b> — нота подтянется, как струна. Это и есть блюзовый «вытягивающий» звук.</p>
+  <p>Жми любые клавиши — <b>промахнуться невозможно</b>, всё звучит как блюз. Большие нижние клавиши — обычные ходы, верхние — прыжки.</p>
+  <p><b>Тяни ноту вверх</b> (мышью/пальцем) или держи <b>Shift</b> — нота подтянется, как струна. Переключай <b>Минор / Мажор</b> на ходу (кнопки или стрелки ↑↓).</p>
   <p>Бэк-трек включится сам. Просто играй.</p>
   <button id="startBtn">Поехали</button>
 </div>
 
+<div id="settings" class="hidden">
+  <div class="sheet">
+    <h3>⚙ Настройки</h3>
+    <div class="srow"><label>Нижняя нота</label><select id="loSel"></select></div>
+    <div class="srow"><label>Верхняя нота</label><select id="hiSel"></select></div>
+    <div class="srow"><label>Темп</label><input id="bpm" type="range" min="50" max="160" value="85"><span class="val" id="bpmVal">85</span></div>
+    <div class="srow"><label>Тон (яркость)</label><input id="tone" type="range" min="600" max="6000" value="2600"></div>
+    <div class="srow"><label>Громкость соло</label><input id="volSolo" type="range" min="0" max="100" value="80"></div>
+    <div class="srow"><label>Громкость аккомпанемента</label><input id="volAcc" type="range" min="0" max="100" value="50"></div>
+    <button id="closeSettings">Готово</button>
+  </div>
+</div>
+
 <header>
-  <h1>Блюз-инструмент <small>· шаги по гамме + бенды</small></h1>
+  <h1>Блюз-инструмент 2 <small>· шаги по гамме + бенды</small></h1>
 </header>
 
 <div class="controls">
   <div class="ctl">
-    <label>Тональность</label>
-    <select id="rootSel"></select>
+    <label>Лад</label>
+    <div class="seg" id="ladSeg">
+      <button data-scale="minor" class="active">Минор</button>
+      <button data-scale="major">Мажор</button>
+    </div>
   </div>
   <div class="ctl">
-    <label>Лад</label>
-    <select id="scaleSel">
-      <option value="minor">Минор</option>
-      <option value="major">Мажор</option>
-      <option value="mix">Микс</option>
-    </select>
+    <label>Тональность</label>
+    <select id="rootSel"></select>
   </div>
   <div class="ctl">
     <label>Бэк</label>
@@ -134,20 +165,12 @@
     </select>
   </div>
   <div class="ctl">
-    <label>Темп <span id="bpmVal">85</span></label>
-    <input id="bpm" type="range" min="50" max="160" value="85">
-  </div>
-  <div class="ctl">
-    <label>Тон</label>
-    <input id="tone" type="range" min="600" max="6000" value="2600">
-  </div>
-  <div class="ctl">
-    <label>Громкость</label>
-    <input id="vol" type="range" min="0" max="100" value="80">
+    <label>&nbsp;</label>
+    <button id="accBtn" class="toggle">▶ Бэк-трек</button>
   </div>
   <div class="ctl">
     <label>&nbsp;</label>
-    <button id="accBtn" class="toggle">▶ Бэк-трек</button>
+    <button id="settingsBtn">⚙ Настройки</button>
   </div>
 </div>
 
@@ -163,7 +186,7 @@
 
 <div class="extra" id="extra"></div>
 
-<div class="hint">Клавиши: <b>S D F G H · Пробел · J K L ; '</b> · Shift — бенд · [ ] — октава · Backspace — к тонике</div>
+<div class="hint">Клавиши: <b>S D F G H · Пробел · J K L ; '</b> · Shift — бенд · [ ] — октава · Backspace — тоника · ↑↓ — мажор/минор</div>
 
 <script>
 (() => {
@@ -173,19 +196,15 @@
   const SCALES = {
     minor: [0,3,5,6,7,10],          // 1 ♭3 4 ♭5 5 ♭7  — минорный блюз
     major: [0,2,3,4,7,9],           // 1 2 ♭3 3 5 6     — мажорный блюз
-    mix:   [0,2,3,4,5,6,7,9,10],    // объединение обоих — «смешанный» блюз
   };
-  let BLUES = SCALES.minor;         // активный лад (меняется переключателем)
-  // имя ступени по её полутону внутри октавы
+  let BLUES = SCALES.minor;
   const DEG_NAME = {0:"тоника",2:"секунда",3:"блюз. терция",4:"терция",5:"кварта",
                     6:"блю-нота",7:"квинта",9:"секста",10:"блюз. септима"};
-  // Опорные (аккордовые) тоны блюза по полутонам внутри октавы:
-  // тоника(0), мажорная терция(4), квинта(7), септима(10).
-  // Нота «хорошо тянется», если подтяжка вверх попадает в один из них.
+  // опорные (аккордовые) тоны: тоника(0), терция(4), квинта(7), септима(10)
   const BEND_TARGETS = {0:"тоники", 4:"терции", 7:"квинты", 10:"септимы"};
   function bendInfo(step){
-    const pc = BLUES[step];                   // полутон ступени внутри октавы
-    for (const amt of [1,2]){                 // сначала полутон, потом целый тон
+    const pc = BLUES[step];
+    for (const amt of [1,2]){
       const name = BEND_TARGETS[(pc+amt)%12];
       if (name) return {amt, name};
     }
@@ -193,12 +212,15 @@
   }
   const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 
-  const settings = { rootMidi:57, bpm:85, volume:0.8, tone:2600, backing:"major" };   // A3
+  const settings = {
+    rootMidi:57, bpm:85, tone:2600, backing:"major", scale:"minor",
+    volSolo:0.8, volAcc:0.5, minMidi:33, maxMidi:93,   // A1..A6
+  };
   let currentIndex = 0;
 
   /* ---------- Web Audio ---------- */
   let actx=null, master=null, comp=null, leadBus=null, leadFilter=null, shaper=null,
-      accBus=null, reverb=null, noiseBuf=null;
+      leadOut=null, accBus=null, reverb=null, noiseBuf=null;
   const activeVoices = new Map();
 
   function initAudio(){
@@ -207,23 +229,23 @@
 
     comp = actx.createDynamicsCompressor();
     comp.threshold.value=-12; comp.ratio.value=3; comp.release.value=.25;
-    master = actx.createGain(); master.gain.value=settings.volume;
+    master = actx.createGain(); master.gain.value=1;
     master.connect(comp); comp.connect(actx.destination);
 
     reverb = actx.createConvolver(); reverb.buffer=makeImpulse(2.4,2.6);
     const revGain=actx.createGain(); revGain.gain.value=.3;
     reverb.connect(revGain); revGain.connect(master);
 
-    // тракт лида: голоса -> bus -> lowpass(тон) -> лёгкий овердрайв -> master + реверб
+    // тракт лида: голоса -> bus -> lowpass(тон) -> овердрайв -> громкость соло -> master+реверб
     leadBus    = actx.createGain(); leadBus.gain.value=.9;
     leadFilter = actx.createBiquadFilter(); leadFilter.type="lowpass";
     leadFilter.frequency.value=settings.tone; leadFilter.Q.value=.8;
     shaper = actx.createWaveShaper(); shaper.curve=makeDriveCurve(1.6); shaper.oversample="2x";
-    const leadOut=actx.createGain(); leadOut.gain.value=.7;
+    leadOut = actx.createGain(); leadOut.gain.value=settings.volSolo;
     leadBus.connect(leadFilter); leadFilter.connect(shaper); shaper.connect(leadOut);
     leadOut.connect(master); leadOut.connect(reverb);
 
-    accBus = actx.createGain(); accBus.gain.value=.5;
+    accBus = actx.createGain(); accBus.gain.value=settings.volAcc;
     accBus.connect(master); accBus.connect(reverb);
 
     const len=actx.sampleRate*1; noiseBuf=actx.createBuffer(1,len,actx.sampleRate);
@@ -251,15 +273,30 @@
   function midiToFreq(m){ return 440*Math.pow(2,(m-69)/12); }
   function midiToName(m){ return NOTE_NAMES[((m%12)+12)%12] + (Math.floor(m/12)-1); }
 
-  // диапазон A1..A6 (MIDI 33..93) — позиция не выходит за края
-  const MIN_MIDI=33, MAX_MIDI=93;
-  function clampIndex(i){
-    while(indexToMidi(i) > MAX_MIDI) i--;
-    while(indexToMidi(i) < MIN_MIDI) i++;
-    return i;
+  // границы индекса по выбранному диапазону нот (без зацикливания)
+  function indexBounds(){
+    const lo=Math.min(settings.minMidi,settings.maxMidi), hi=Math.max(settings.minMidi,settings.maxMidi);
+    let loIdx=null, hiIdx=null;
+    for(let i=-48;i<=48;i++){ const m=indexToMidi(i); if(m>=lo&&m<=hi){ if(loIdx===null)loIdx=i; hiIdx=i; } }
+    if(loIdx===null){ loIdx=hiIdx=nearestIndex((lo+hi)/2); }
+    return [loIdx,hiIdx];
+  }
+  function clampIndex(i){ const [lo,hi]=indexBounds(); return Math.max(lo, Math.min(hi, i)); }
+
+  // индекс с нотой, ближайшей к target; при равенстве — что выше
+  function nearestIndex(target){
+    const lo=Math.min(settings.minMidi,settings.maxMidi), hi=Math.max(settings.minMidi,settings.maxMidi);
+    let best=0, bestD=Infinity, bestM=-Infinity;
+    for(let i=-48;i<=48;i++){
+      const m=indexToMidi(i);
+      if(m<lo||m>hi) continue;
+      const d=Math.abs(m-target);
+      if(d<bestD || (d===bestD && m>bestM)){ best=i; bestD=d; bestM=m; }
+    }
+    return best;
   }
 
-  /* ---------- Голос (тянется, пока зажат) ---------- */
+  /* ---------- Голос ---------- */
   function startVoice(id, freq, maxBend){
     const t=actx.currentTime;
     const o1=actx.createOscillator(), o2=actx.createOscillator();
@@ -289,7 +326,6 @@
     v.o1.stop(t+0.36); v.o2.stop(t+0.36); v.lfo.stop(t+0.36);
   }
   function applyBend(v){
-    // потолок бенда = музыкальная цель ноты; перетянуть нельзя
     const semis=Math.min(Math.max(v.dragBend, kbBend), v.maxBend);
     const f=v.baseFreq*Math.pow(2,semis/12), t=actx.currentTime;
     v.o1.frequency.setTargetAtTime(f,t,0.025);
@@ -306,33 +342,52 @@
     const bi=bendInfo(step);
     const v=startVoice(id, midiToFreq(midi), bi?bi.amt:0);
     el.classList.add("active");
-    el.classList.toggle("nobend", !bi);          // нота не тянется
-    el.dataset.maxbend=bi?bi.amt:0;
-    updateDisplay(midi);
+    el.classList.toggle("nobend", !bi);
+    updateDisplay();
     return v;
   }
   function noteOff(id, el){ stopVoice(id); if(el){el.classList.remove("active","bending","bent","nobend"); el.style.setProperty("--bend",0);} }
-  function shiftOctave(dir){ currentIndex=clampIndex(currentIndex+dir*BLUES.length); updateDisplay(indexToMidi(currentIndex)); }
-  function resetToRoot(){ currentIndex=0; updateDisplay(indexToMidi(0)); }
+  function shiftOctave(dir){ currentIndex=clampIndex(currentIndex+dir*BLUES.length); updateDisplay(); }
+  function resetToRoot(){ currentIndex=clampIndex(0); updateDisplay(); }
+
+  // смена лада на ходу: текущая нота -> ближайшая в новом ладу
+  function setScale(name){
+    if(!SCALES[name]) return;
+    const oldMidi=indexToMidi(currentIndex);
+    BLUES=SCALES[name]; settings.scale=name;
+    currentIndex=clampIndex(nearestIndex(oldMidi));
+    for(const b of ladSeg.querySelectorAll("button")) b.classList.toggle("active", b.dataset.scale===name);
+    updateDisplay();
+  }
 
   /* ---------- Дисплей ---------- */
   const elNote=document.getElementById("noteName");
   const elRole=document.getElementById("roleName");
   const elTip =document.getElementById("tip");
-  function updateDisplay(midi){
+  function updateDisplay(){
+    const midi=indexToMidi(currentIndex);
     elNote.textContent=midiToName(midi);
     const len=BLUES.length, step=((currentIndex%len)+len)%len, oct=Math.floor(currentIndex/len);
-    const semi=BLUES[step], isBlue=(semi===6);     // ♭5 — «блю-нота»
+    const semi=BLUES[step], isBlue=(semi===6);
     elRole.textContent=(DEG_NAME[semi]||"")+(oct? " · окт "+(oct>0?"+":"")+oct : "");
     const bi=bendInfo(step);
     if(bi){
       elTip.textContent = (isBlue ? "★ блю-нота — тяни до " : "↑ тяни до ") + bi.name;
       elTip.className = isBlue ? "tip blue" : "tip";
     } else { elTip.textContent=""; elTip.className="tip"; }
+    refreshKeyLabels();
+  }
+  // на клавишах: ступень и (фактическая нота), которая прозвучит при нажатии
+  function refreshKeyLabels(){
+    const len=BLUES.length;
+    for(const k of noteKeys){
+      const idx=clampIndex(currentIndex+k.off);
+      const step=((idx%len)+len)%len;
+      k.lead.textContent=(step+1)+" ("+midiToName(indexToMidi(idx))+")";
+    }
   }
 
   /* ---------- Раскладка клавиш ---------- */
-  // верхний ряд — прыжки; нижний — частые ходы (крупнее)
   const TOP = [
     {off:-5,code:"KeyS",lbl:"S",w:1.0},{off:-4,code:"KeyD",lbl:"D",w:1.3},{off:-3,code:"KeyF",lbl:"F",w:1.7},
     {off:3,code:"KeyL",lbl:"L",w:1.7},{off:4,code:"Semicolon",lbl:";",w:1.3},{off:5,code:"Quote",lbl:"'",w:1.0},
@@ -342,17 +397,18 @@
     {off:0,code:"Space",lbl:"␣",w:3.8},
     {off:1,code:"KeyJ",lbl:"J",w:3.2},{off:2,code:"KeyK",lbl:"K",w:2.4},
   ];
-  const codeMap={};
+  const codeMap={}, noteKeys=[];
   function buildRow(list, host){
     list.forEach(k=>{
       const el=document.createElement("div");
       el.className="key "+(k.off<0?"neg":k.off>0?"pos":"zero")+" canbend";
       el.style.flexGrow=k.w;
       el.innerHTML=`<span class="kb">${k.lbl}</span><span class="off">${k.off>0?"+":""}${k.off}</span>`
-                  +`<span class="bendfill"></span><span class="arrow">↑</span>`;
+                  +`<span class="lead"></span><span class="bendfill"></span><span class="arrow">↑</span>`;
       bindPointer(el,k.off);
       host.appendChild(el);
       codeMap[k.code]={el,off:k.off};
+      noteKeys.push({off:k.off, lead:el.querySelector(".lead")});
     });
   }
   buildRow(TOP,document.getElementById("rowTop"));
@@ -374,8 +430,8 @@
   });
 
   /* ---------- Указатель: нажатие + вертикальный бенд ---------- */
-  const BEND_PX=110;                          // на сколько тянуть до максимума (полный тон)
-  const pointers=new Map();                   // pointerId -> {id, startY, el, voice}
+  const BEND_PX=110;
+  const pointers=new Map();
   function bindPointer(el, off){
     el.addEventListener("pointerdown", e=>{
       e.preventDefault();
@@ -386,13 +442,13 @@
   }
   window.addEventListener("pointermove", e=>{
     const p=pointers.get(e.pointerId); if(!p) return;
-    const raw=Math.max(0, (p.startY-e.clientY)/BEND_PX*2);   // в полутонах, без верхнего предела
-    p.voice.dragBend=raw; applyBend(p.voice);                // applyBend сам обрежет по потолку
+    const raw=Math.max(0, (p.startY-e.clientY)/BEND_PX*2);
+    p.voice.dragBend=raw; applyBend(p.voice);
     const mb=p.voice.maxBend;
-    const frac = mb>0 ? Math.min(raw,mb)/mb : 0;             // 0..1 относительно цели ноты
+    const frac = mb>0 ? Math.min(raw,mb)/mb : 0;
     p.el.style.setProperty("--bend", frac.toFixed(3));
     p.el.classList.toggle("bending", frac>0.06);
-    p.el.classList.toggle("bent", mb>0 && raw>=mb);          // цель достигнута
+    p.el.classList.toggle("bent", mb>0 && raw>=mb);
   });
   function endPointer(e){
     const p=pointers.get(e.pointerId); if(!p) return;
@@ -407,6 +463,8 @@
   function setKbBend(semis){ kbBend=semis; for(const v of activeVoices.values()) applyBend(v); }
   window.addEventListener("keydown", e=>{
     if(e.code==="ShiftLeft"||e.code==="ShiftRight"){ e.preventDefault(); setKbBend(2); return; }
+    if(e.code==="ArrowUp"){ e.preventDefault(); setScale("major"); return; }
+    if(e.code==="ArrowDown"){ e.preventDefault(); setScale("minor"); return; }
     const m=codeMap[e.code]; if(!m) return;
     e.preventDefault();
     if(held.has(e.code)) return; held.add(e.code);
@@ -427,28 +485,23 @@
   let accOn=false, nextNoteTime=0, eighth=0, schedTimer=null;
   const accGain=l=>{const g=actx.createGain();g.gain.value=l;g.connect(accBus);return g;};
 
-  // Стили бэка. bars: 12 аккордов {root: полутон от тоники, ivs: интервалы аккорда};
-  // bass: рисунок баса по 8 восьмым; drums: 'full' | 'light'.
   const DOM7=[0,4,7,10], MIN7=[0,3,7,10], MAJ=[0,4,7];
   const BACKINGS = {
-    major: {                                   // мажорно-доминантовый блюз (I7 IV7 V7)
+    major: {
       bars: [0,0,0,0,5,5,0,0,7,5,0,7].map(r=>({root:r, ivs:DOM7})),
-      bass: [0,4,7,9,10,9,7,4],                // буги-вуги
-      drums:'full',
+      bass: [0,4,7,9,10,9,7,4], drums:'full',
     },
-    minor: {                                   // минорный блюз: i iv min7, V7 домин., ♭VI мажор
+    minor: {
       bars: [
         {root:0,ivs:MIN7},{root:0,ivs:MIN7},{root:0,ivs:MIN7},{root:0,ivs:MIN7},
         {root:5,ivs:MIN7},{root:5,ivs:MIN7},{root:0,ivs:MIN7},{root:0,ivs:MIN7},
         {root:8,ivs:MAJ}, {root:7,ivs:DOM7}, {root:0,ivs:MIN7},{root:7,ivs:DOM7},
       ],
-      bass: [0,3,7,10,12,10,7,3],              // минорная линия
-      drums:'full',
+      bass: [0,3,7,10,12,10,7,3], drums:'full',
     },
-    drone: {                                   // дрон-вамп на тонике (нейтральная квинта)
+    drone: {
       bars: Array.from({length:12}, ()=>({root:0, ivs:[0,7,12]})),
-      bass: [0,0,0,7,0,0,0,7],                 // педаль тоника/квинта
-      drums:'light',
+      bass: [0,0,0,7,0,0,0,7], drums:'light',
     },
   };
 
@@ -487,13 +540,13 @@
   function scheduleEighth(ge,time){
     const b=BACKINGS[settings.backing];
     const beat=60/settings.bpm, step=ge%8, off=step%2;
-    const t=time+(off?beat*0.16:0);                 // шаффл
+    const t=time+(off?beat*0.16:0);
     const chord=b.bars[Math.floor(ge/8)%12];
     if(b.drums==='full'){
       hat(t,off);
       if(step===0||step===4) kick(t);
       if(step===2||step===6) snare(t);
-    } else {                                        // light — мягкий пульс для дрона
+    } else {
       if(off) hat(t,true);
       if(step===0) kick(t);
     }
@@ -516,8 +569,11 @@
     accBtn.classList.remove("on"); accBtn.textContent="▶ Бэк-трек"; }
 
   /* ---------- Контролы ---------- */
+  const ladSeg=document.getElementById("ladSeg");
+  for(const b of ladSeg.querySelectorAll("button"))
+    b.addEventListener("pointerdown",e=>{e.preventDefault();initAudio();resumeAudio();setScale(b.dataset.scale);});
+
   const rootSel=document.getElementById("rootSel");
-  // показываем тональность по корню, но держим звук в удобной 3-й октаве
   [["A",57],["A#",58],["B",59],["C",60],["C#",61],["D",62],["D#",63],["E",64],
    ["F",53],["F#",54],["G",55],["G#",56]].forEach(([nm,mid])=>{
     const o=document.createElement("option");o.value=mid;o.textContent=nm;rootSel.appendChild(o);
@@ -525,32 +581,44 @@
   rootSel.value=57;
   rootSel.addEventListener("change",()=>{ settings.rootMidi=+rootSel.value; resetToRoot(); });
 
-  const scaleSel=document.getElementById("scaleSel");
-  scaleSel.addEventListener("change",()=>{ BLUES=SCALES[scaleSel.value]; resetToRoot(); });
-
   const backSel=document.getElementById("backSel");
   backSel.addEventListener("change",()=>{ settings.backing=backSel.value; });
 
+  /* ---------- Настройки ---------- */
+  const loSel=document.getElementById("loSel"), hiSel=document.getElementById("hiSel");
+  for(let m=24;m<=96;m++){                       // C1..C7
+    loSel.appendChild(new Option(midiToName(m),m));
+    hiSel.appendChild(new Option(midiToName(m),m));
+  }
+  loSel.value=settings.minMidi; hiSel.value=settings.maxMidi;
+  loSel.addEventListener("change",()=>{ settings.minMidi=+loSel.value; currentIndex=clampIndex(currentIndex); updateDisplay(); });
+  hiSel.addEventListener("change",()=>{ settings.maxMidi=+hiSel.value; currentIndex=clampIndex(currentIndex); updateDisplay(); });
+
   const bpm=document.getElementById("bpm"), bpmVal=document.getElementById("bpmVal");
   bpm.addEventListener("input",()=>{settings.bpm=+bpm.value; bpmVal.textContent=bpm.value;});
-
   const tone=document.getElementById("tone");
   tone.addEventListener("input",()=>{settings.tone=+tone.value; if(leadFilter) leadFilter.frequency.value=settings.tone;});
+  const volSolo=document.getElementById("volSolo");
+  volSolo.addEventListener("input",()=>{settings.volSolo=volSolo.value/100; if(leadOut) leadOut.gain.value=settings.volSolo;});
+  const volAcc=document.getElementById("volAcc");
+  volAcc.addEventListener("input",()=>{settings.volAcc=volAcc.value/100; if(accBus) accBus.gain.value=settings.volAcc;});
 
-  const vol=document.getElementById("vol");
-  vol.addEventListener("input",()=>{settings.volume=vol.value/100; if(master) master.gain.value=settings.volume;});
+  const settingsEl=document.getElementById("settings");
+  document.getElementById("settingsBtn").addEventListener("click",()=>settingsEl.classList.remove("hidden"));
+  document.getElementById("closeSettings").addEventListener("click",()=>settingsEl.classList.add("hidden"));
 
   const accBtn=document.getElementById("accBtn");
   accBtn.addEventListener("click",()=> accOn?stopAcc():startAcc());
 
-  /* ---------- Старт: сразу включаем бэк-трек ---------- */
+  /* ---------- Старт ---------- */
   document.getElementById("startBtn").addEventListener("click",()=>{
     initAudio(); resumeAudio();
-    document.getElementById("overlay").style.display="none";
-    updateDisplay(indexToMidi(0));
+    document.getElementById("overlay").classList.add("hidden");
+    updateDisplay();
     startAcc();
   });
 
+  updateDisplay();   // подписи на клавишах сразу
   document.addEventListener("gesturestart",e=>e.preventDefault());
   document.addEventListener("contextmenu",e=>e.preventDefault());
 })();
