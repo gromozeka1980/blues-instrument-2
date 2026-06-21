@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Блюз-инструмент</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --line:#222b36;
+    --neg:#3b5bdb; --pos:#e8590c; --zero:#2f9e44;
+    --text:#e6edf3; --muted:#8b98a5; --accent:#ffd43b; --blue:#22b8cf;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; height:100%;}
+  body{
+    background:radial-gradient(1200px 600px at 50% -10%, #18324f 0%, var(--bg) 60%);
+    color:var(--text); font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    display:flex; flex-direction:column; min-height:100%; overflow:hidden;
+    touch-action:none; user-select:none; -webkit-user-select:none;
+  }
+  header{padding:8px 14px 2px; text-align:center;}
+  h1{font-size:14px; margin:0; font-weight:600; letter-spacing:.3px;}
+  h1 small{color:var(--muted); font-weight:400;}
+
+  .controls{
+    display:flex; flex-wrap:wrap; gap:6px 16px; justify-content:center;
+    padding:6px 12px;
+  }
+  .ctl{display:flex; flex-direction:column; gap:2px;}
+  .ctl label{color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.5px;}
+  select,button{
+    background:var(--panel); color:var(--text); border:1px solid var(--line);
+    border-radius:8px; padding:6px 10px; font-size:13px; cursor:pointer;
+  }
+  button.toggle.on{background:var(--zero); border-color:var(--zero); color:#04140a; font-weight:600;}
+  input[type=range]{width:108px; accent-color:var(--accent);}
+
+  .display{
+    display:flex; gap:14px; justify-content:center; align-items:center;
+    padding:4px 12px 8px; min-height:46px;
+  }
+  .note{font-size:30px; font-weight:700; min-width:70px; text-align:center;
+        text-shadow:0 0 18px rgba(255,212,59,.3);}
+  .role{font-size:14px; color:var(--muted); text-align:left; line-height:1.3;}
+  .role b{color:var(--text);}
+  .role .tip{color:var(--accent); font-weight:600;}
+  .role .tip.blue{color:var(--blue);}
+
+  .stage{flex:1; display:flex; flex-direction:column; gap:6px; padding:4px 10px 10px;}
+  .row{display:flex; gap:6px;}
+  .row.top{height:clamp(64px,15vh,118px); flex:none;}
+  .row.bottom{flex:1; min-height:clamp(116px,30vh,230px);}
+
+  .key{
+    flex:1 1 0; min-width:0; border-radius:14px; border:1px solid var(--line);
+    background:linear-gradient(180deg,#1d2733,#121821);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    cursor:pointer; position:relative; overflow:hidden;
+    transition:transform .05s, box-shadow .12s, background .12s;
+  }
+  .key .off{font-weight:800; line-height:1;}
+  .row.bottom .key .off{font-size:clamp(26px,7vw,50px);}
+  .row.top .key .off{font-size:clamp(15px,4vw,28px); font-weight:700;}
+  .key .kb{position:absolute; top:6px; font-size:10px; color:var(--muted);
+           border:1px solid var(--line); border-radius:5px; padding:0 5px; min-width:16px; text-align:center;}
+  .key .arrow{position:absolute; bottom:6px; font-size:13px; color:var(--accent); opacity:0; transition:opacity .15s;}
+  .key.canbend .arrow{opacity:.5;}
+
+  .key.neg{border-color:rgba(59,91,219,.4);}
+  .key.pos{border-color:rgba(232,89,12,.4);}
+  .key.zero{border-color:rgba(47,158,68,.55);}
+  .key.active{transform:translateY(2px);}
+  .key.neg.active{background:linear-gradient(180deg,#3b5bdb,#27409c); box-shadow:0 0 26px rgba(59,91,219,.6);}
+  .key.pos.active{background:linear-gradient(180deg,#e8590c,#a8430a); box-shadow:0 0 26px rgba(232,89,12,.6);}
+  .key.zero.active{background:linear-gradient(180deg,#2f9e44,#1f6e30); box-shadow:0 0 26px rgba(47,158,68,.6);}
+  /* индикатор бенда — заливка снизу вверх */
+  .key .bendfill{position:absolute; left:0; right:0; bottom:0; height:calc(var(--bend,0)*100%);
+                 background:linear-gradient(0deg, rgba(255,212,59,.55), rgba(255,212,59,0)); pointer-events:none;}
+  .key.bending{box-shadow:0 0 30px rgba(255,212,59,.7) !important;}
+  .key.bending .arrow{opacity:1; color:#fff;}
+  .key.bent{box-shadow:0 0 36px var(--accent) !important; border-color:var(--accent) !important;}
+  .key.bent .arrow{content:""; opacity:1; color:var(--accent);}
+  .key.nobend .arrow{opacity:0 !important;}   /* эту ноту тянуть не стоит */
+
+  .extra{display:flex; gap:8px; justify-content:center; padding:0 12px 6px; flex-wrap:wrap;}
+  .extra .key{flex:0 0 auto; min-width:88px; max-width:130px; height:42px; border-radius:10px;}
+  .extra .key .off{font-size:13px; font-weight:600;}
+
+  .hint{color:var(--muted); font-size:11px; text-align:center; padding:0 12px 8px;}
+
+  #overlay{
+    position:fixed; inset:0; background:rgba(5,8,12,.94); display:flex;
+    flex-direction:column; align-items:center; justify-content:center; gap:16px;
+    z-index:10; text-align:center; padding:22px;
+  }
+  #overlay h2{font-size:24px; margin:0;}
+  #overlay p{color:var(--muted); max-width:460px; line-height:1.55; margin:0; font-size:15px;}
+  #overlay p b{color:var(--text);}
+  #overlay button{font-size:19px; padding:15px 34px; background:var(--zero); border-color:var(--zero); color:#04140a; font-weight:700;}
+</style>
+</head>
+<body>
+<div id="overlay">
+  <h2>🎸 Блюз за минуту</h2>
+  <p>Жми любые клавиши — <b>промахнуться невозможно</b>, всё звучит как блюз. Большие нижние клавиши — обычные ходы, верхние — прыжки подальше.</p>
+  <p><b>Тяни ноту вверх</b> (мышью/пальцем) или держи <b>Shift</b> — нота подтянется, как струна. Это и есть блюзовый «вытягивающий» звук.</p>
+  <p>Бэк-трек включится сам. Просто играй.</p>
+  <button id="startBtn">Поехали</button>
+</div>
+
+<header>
+  <h1>Блюз-инструмент <small>· шаги по гамме + бенды</small></h1>
+</header>
+
+<div class="controls">
+  <div class="ctl">
+    <label>Тональность</label>
+    <select id="rootSel"></select>
+  </div>
+  <div class="ctl">
+    <label>Лад</label>
+    <select id="scaleSel">
+      <option value="minor">Минор</option>
+      <option value="major">Мажор</option>
+      <option value="mix">Микс</option>
+    </select>
+  </div>
+  <div class="ctl">
+    <label>Бэк</label>
+    <select id="backSel">
+      <option value="major">Мажорный блюз</option>
+      <option value="minor">Минорный блюз</option>
+      <option value="drone">Дрон-вамп</option>
+    </select>
+  </div>
+  <div class="ctl">
+    <label>Темп <span id="bpmVal">85</span></label>
+    <input id="bpm" type="range" min="50" max="160" value="85">
+  </div>
+  <div class="ctl">
+    <label>Тон</label>
+    <input id="tone" type="range" min="600" max="6000" value="2600">
+  </div>
+  <div class="ctl">
+    <label>Громкость</label>
+    <input id="vol" type="range" min="0" max="100" value="80">
+  </div>
+  <div class="ctl">
+    <label>&nbsp;</label>
+    <button id="accBtn" class="toggle">▶ Бэк-трек</button>
+  </div>
+</div>
+
+<div class="display">
+  <div class="note" id="noteName">—</div>
+  <div class="role"><b id="roleName">тоника</b><br><span class="tip" id="tip">жми клавиши</span></div>
+</div>
+
+<div class="stage">
+  <div class="row top" id="rowTop"></div>
+  <div class="row bottom" id="rowBottom"></div>
+</div>
+
+<div class="extra" id="extra"></div>
+
+<div class="hint">Клавиши: <b>S D F G H · Пробел · J K L ; '</b> · Shift — бенд · [ ] — октава · Backspace — к тонике</div>
+
+<script>
+(() => {
+  "use strict";
+
+  /* ---------- Блюзовые лады (полутоны от тоники) ---------- */
+  const SCALES = {
+    minor: [0,3,5,6,7,10],          // 1 ♭3 4 ♭5 5 ♭7  — минорный блюз
+    major: [0,2,3,4,7,9],           // 1 2 ♭3 3 5 6     — мажорный блюз
+    mix:   [0,2,3,4,5,6,7,9,10],    // объединение обоих — «смешанный» блюз
+  };
+  let BLUES = SCALES.minor;         // активный лад (меняется переключателем)
+  // имя ступени по её полутону внутри октавы
+  const DEG_NAME = {0:"тоника",2:"секунда",3:"блюз. терция",4:"терция",5:"кварта",
+                    6:"блю-нота",7:"квинта",9:"секста",10:"блюз. септима"};
+  // Опорные (аккордовые) тоны блюза по полутонам внутри октавы:
+  // тоника(0), мажорная терция(4), квинта(7), септима(10).
+  // Нота «хорошо тянется», если подтяжка вверх попадает в один из них.
+  const BEND_TARGETS = {0:"тоники", 4:"терции", 7:"квинты", 10:"септимы"};
+  function bendInfo(step){
+    const pc = BLUES[step];                   // полутон ступени внутри октавы
+    for (const amt of [1,2]){                 // сначала полутон, потом целый тон
+      const name = BEND_TARGETS[(pc+amt)%12];
+      if (name) return {amt, name};
+    }
+    return null;
+  }
+  const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+  const settings = { rootMidi:57, bpm:85, volume:0.8, tone:2600, backing:"major" };   // A3
+  let currentIndex = 0;
+
+  /* ---------- Web Audio ---------- */
+  let actx=null, master=null, comp=null, leadBus=null, leadFilter=null, shaper=null,
+      accBus=null, reverb=null, noiseBuf=null;
+  const activeVoices = new Map();
+
+  function initAudio(){
+    if (actx) return;
+    actx = new (window.AudioContext||window.webkitAudioContext)();
+
+    comp = actx.createDynamicsCompressor();
+    comp.threshold.value=-12; comp.ratio.value=3; comp.release.value=.25;
+    master = actx.createGain(); master.gain.value=settings.volume;
+    master.connect(comp); comp.connect(actx.destination);
+
+    reverb = actx.createConvolver(); reverb.buffer=makeImpulse(2.4,2.6);
+    const revGain=actx.createGain(); revGain.gain.value=.3;
+    reverb.connect(revGain); revGain.connect(master);
+
+    // тракт лида: голоса -> bus -> lowpass(тон) -> лёгкий овердрайв -> master + реверб
+    leadBus    = actx.createGain(); leadBus.gain.value=.9;
+    leadFilter = actx.createBiquadFilter(); leadFilter.type="lowpass";
+    leadFilter.frequency.value=settings.tone; leadFilter.Q.value=.8;
+    shaper = actx.createWaveShaper(); shaper.curve=makeDriveCurve(1.6); shaper.oversample="2x";
+    const leadOut=actx.createGain(); leadOut.gain.value=.7;
+    leadBus.connect(leadFilter); leadFilter.connect(shaper); shaper.connect(leadOut);
+    leadOut.connect(master); leadOut.connect(reverb);
+
+    accBus = actx.createGain(); accBus.gain.value=.5;
+    accBus.connect(master); accBus.connect(reverb);
+
+    const len=actx.sampleRate*1; noiseBuf=actx.createBuffer(1,len,actx.sampleRate);
+    const d=noiseBuf.getChannelData(0); for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+  }
+  function resumeAudio(){ if(actx && actx.state==="suspended") actx.resume(); }
+
+  function makeImpulse(sec,decay){
+    const rate=actx.sampleRate, n=rate*sec, b=actx.createBuffer(2,n,rate);
+    for(let ch=0;ch<2;ch++){const d=b.getChannelData(ch);
+      for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/n,decay);}
+    return b;
+  }
+  function makeDriveCurve(k){
+    const n=1024,c=new Float32Array(n);
+    for(let i=0;i<n;i++){const x=i/(n-1)*2-1; c[i]=(1+k)*x/(1+k*Math.abs(x));}
+    return c;
+  }
+
+  /* ---------- Позиция -> нота ---------- */
+  function indexToMidi(i){
+    const len=BLUES.length, oct=Math.floor(i/len), step=((i%len)+len)%len;
+    return settings.rootMidi + 12*oct + BLUES[step];
+  }
+  function midiToFreq(m){ return 440*Math.pow(2,(m-69)/12); }
+  function midiToName(m){ return NOTE_NAMES[((m%12)+12)%12] + (Math.floor(m/12)-1); }
+
+  // диапазон A1..A6 (MIDI 33..93) — позиция не выходит за края
+  const MIN_MIDI=33, MAX_MIDI=93;
+  function clampIndex(i){
+    while(indexToMidi(i) > MAX_MIDI) i--;
+    while(indexToMidi(i) < MIN_MIDI) i++;
+    return i;
+  }
+
+  /* ---------- Голос (тянется, пока зажат) ---------- */
+  function startVoice(id, freq, maxBend){
+    const t=actx.currentTime;
+    const o1=actx.createOscillator(), o2=actx.createOscillator();
+    o1.type=o2.type="sawtooth";
+    o1.frequency.value=freq; o2.frequency.value=freq; o2.detune.value=8;
+    const lfo=actx.createOscillator(), lfoG=actx.createGain();
+    lfo.frequency.value=5.2; lfoG.gain.value=4;
+    lfo.connect(lfoG); lfoG.connect(o1.detune); lfoG.connect(o2.detune);
+    const g=actx.createGain();
+    g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(.32,t+0.012);
+    g.gain.exponentialRampToValueAtTime(.2,t+0.3);
+    o1.connect(g); o2.connect(g); g.connect(leadBus);
+    o1.start(t); o2.start(t); lfo.start(t);
+    const v={o1,o2,lfo,g,baseFreq:freq,dragBend:0,maxBend:maxBend||0};
+    if (kbBend>0) applyBend(v);
+    activeVoices.set(id,v);
+    return v;
+  }
+  function stopVoice(id){
+    const v=activeVoices.get(id); if(!v) return;
+    activeVoices.delete(id);
+    const t=actx.currentTime;
+    v.g.gain.cancelScheduledValues(t);
+    v.g.gain.setValueAtTime(v.g.gain.value,t);
+    v.g.gain.exponentialRampToValueAtTime(.0008,t+0.32);
+    v.o1.stop(t+0.36); v.o2.stop(t+0.36); v.lfo.stop(t+0.36);
+  }
+  function applyBend(v){
+    // потолок бенда = музыкальная цель ноты; перетянуть нельзя
+    const semis=Math.min(Math.max(v.dragBend, kbBend), v.maxBend);
+    const f=v.baseFreq*Math.pow(2,semis/12), t=actx.currentTime;
+    v.o1.frequency.setTargetAtTime(f,t,0.025);
+    v.o2.frequency.setTargetAtTime(f,t,0.025);
+  }
+
+  /* ---------- Нажатие / отпускание ---------- */
+  function noteOn(id, offset, el){
+    initAudio(); resumeAudio();
+    if (activeVoices.has(id)) return null;
+    currentIndex = clampIndex(currentIndex + offset);
+    const midi=indexToMidi(currentIndex);
+    const len=BLUES.length, step=((currentIndex%len)+len)%len;
+    const bi=bendInfo(step);
+    const v=startVoice(id, midiToFreq(midi), bi?bi.amt:0);
+    el.classList.add("active");
+    el.classList.toggle("nobend", !bi);          // нота не тянется
+    el.dataset.maxbend=bi?bi.amt:0;
+    updateDisplay(midi);
+    return v;
+  }
+  function noteOff(id, el){ stopVoice(id); if(el){el.classList.remove("active","bending","bent","nobend"); el.style.setProperty("--bend",0);} }
+  function shiftOctave(dir){ currentIndex=clampIndex(currentIndex+dir*BLUES.length); updateDisplay(indexToMidi(currentIndex)); }
+  function resetToRoot(){ currentIndex=0; updateDisplay(indexToMidi(0)); }
+
+  /* ---------- Дисплей ---------- */
+  const elNote=document.getElementById("noteName");
+  const elRole=document.getElementById("roleName");
+  const elTip =document.getElementById("tip");
+  function updateDisplay(midi){
+    elNote.textContent=midiToName(midi);
+    const len=BLUES.length, step=((currentIndex%len)+len)%len, oct=Math.floor(currentIndex/len);
+    const semi=BLUES[step], isBlue=(semi===6);     // ♭5 — «блю-нота»
+    elRole.textContent=(DEG_NAME[semi]||"")+(oct? " · окт "+(oct>0?"+":"")+oct : "");
+    const bi=bendInfo(step);
+    if(bi){
+      elTip.textContent = (isBlue ? "★ блю-нота — тяни до " : "↑ тяни до ") + bi.name;
+      elTip.className = isBlue ? "tip blue" : "tip";
+    } else { elTip.textContent=""; elTip.className="tip"; }
+  }
+
+  /* ---------- Раскладка клавиш ---------- */
+  // верхний ряд — прыжки; нижний — частые ходы (крупнее)
+  const TOP = [
+    {off:-5,code:"KeyS",lbl:"S",w:1.0},{off:-4,code:"KeyD",lbl:"D",w:1.3},{off:-3,code:"KeyF",lbl:"F",w:1.7},
+    {off:3,code:"KeyL",lbl:"L",w:1.7},{off:4,code:"Semicolon",lbl:";",w:1.3},{off:5,code:"Quote",lbl:"'",w:1.0},
+  ];
+  const BOTTOM = [
+    {off:-2,code:"KeyG",lbl:"G",w:2.4},{off:-1,code:"KeyH",lbl:"H",w:3.2},
+    {off:0,code:"Space",lbl:"␣",w:3.8},
+    {off:1,code:"KeyJ",lbl:"J",w:3.2},{off:2,code:"KeyK",lbl:"K",w:2.4},
+  ];
+  const codeMap={};
+  function buildRow(list, host){
+    list.forEach(k=>{
+      const el=document.createElement("div");
+      el.className="key "+(k.off<0?"neg":k.off>0?"pos":"zero")+" canbend";
+      el.style.flexGrow=k.w;
+      el.innerHTML=`<span class="kb">${k.lbl}</span><span class="off">${k.off>0?"+":""}${k.off}</span>`
+                  +`<span class="bendfill"></span><span class="arrow">↑</span>`;
+      bindPointer(el,k.off);
+      host.appendChild(el);
+      codeMap[k.code]={el,off:k.off};
+    });
+  }
+  buildRow(TOP,document.getElementById("rowTop"));
+  buildRow(BOTTOM,document.getElementById("rowBottom"));
+
+  const EXTRA=[
+    {label:"Октава ↓",code:"BracketLeft",act:()=>shiftOctave(-1)},
+    {label:"★ к тонике",code:"Backspace",act:resetToRoot},
+    {label:"Октава ↑",code:"BracketRight",act:()=>shiftOctave(1)},
+  ];
+  const extraHost=document.getElementById("extra");
+  EXTRA.forEach(k=>{
+    const el=document.createElement("div"); el.className="key zero";
+    el.innerHTML=`<span class="off">${k.label}</span>`;
+    el.addEventListener("pointerdown",e=>{e.preventDefault();initAudio();resumeAudio();k.act();
+      el.classList.add("active");setTimeout(()=>el.classList.remove("active"),120);});
+    extraHost.appendChild(el);
+    codeMap[k.code]={el,act:k.act,momentary:true};
+  });
+
+  /* ---------- Указатель: нажатие + вертикальный бенд ---------- */
+  const BEND_PX=110;                          // на сколько тянуть до максимума (полный тон)
+  const pointers=new Map();                   // pointerId -> {id, startY, el, voice}
+  function bindPointer(el, off){
+    el.addEventListener("pointerdown", e=>{
+      e.preventDefault();
+      const id="p"+e.pointerId;
+      const v=noteOn(id, off, el);
+      if(v) pointers.set(e.pointerId,{id,startY:e.clientY,el,voice:v});
+    });
+  }
+  window.addEventListener("pointermove", e=>{
+    const p=pointers.get(e.pointerId); if(!p) return;
+    const raw=Math.max(0, (p.startY-e.clientY)/BEND_PX*2);   // в полутонах, без верхнего предела
+    p.voice.dragBend=raw; applyBend(p.voice);                // applyBend сам обрежет по потолку
+    const mb=p.voice.maxBend;
+    const frac = mb>0 ? Math.min(raw,mb)/mb : 0;             // 0..1 относительно цели ноты
+    p.el.style.setProperty("--bend", frac.toFixed(3));
+    p.el.classList.toggle("bending", frac>0.06);
+    p.el.classList.toggle("bent", mb>0 && raw>=mb);          // цель достигнута
+  });
+  function endPointer(e){
+    const p=pointers.get(e.pointerId); if(!p) return;
+    pointers.delete(e.pointerId); noteOff(p.id, p.el);
+  }
+  window.addEventListener("pointerup", endPointer);
+  window.addEventListener("pointercancel", endPointer);
+
+  /* ---------- Клавиатура ---------- */
+  const held=new Set();
+  let kbBend=0;
+  function setKbBend(semis){ kbBend=semis; for(const v of activeVoices.values()) applyBend(v); }
+  window.addEventListener("keydown", e=>{
+    if(e.code==="ShiftLeft"||e.code==="ShiftRight"){ e.preventDefault(); setKbBend(2); return; }
+    const m=codeMap[e.code]; if(!m) return;
+    e.preventDefault();
+    if(held.has(e.code)) return; held.add(e.code);
+    if(m.momentary){ initAudio();resumeAudio(); m.act(); m.el.classList.add("active"); }
+    else noteOn("k"+e.code, m.off, m.el);
+  });
+  window.addEventListener("keyup", e=>{
+    if(e.code==="ShiftLeft"||e.code==="ShiftRight"){ setKbBend(0); return; }
+    const m=codeMap[e.code]; if(!m) return;
+    held.delete(e.code);
+    if(m.momentary) m.el.classList.remove("active");
+    else noteOff("k"+e.code, m.el);
+  });
+
+  /* ====================================================================
+     12-тактовый блюз — планировщик с упреждением
+     ==================================================================== */
+  let accOn=false, nextNoteTime=0, eighth=0, schedTimer=null;
+  const accGain=l=>{const g=actx.createGain();g.gain.value=l;g.connect(accBus);return g;};
+
+  // Стили бэка. bars: 12 аккордов {root: полутон от тоники, ivs: интервалы аккорда};
+  // bass: рисунок баса по 8 восьмым; drums: 'full' | 'light'.
+  const DOM7=[0,4,7,10], MIN7=[0,3,7,10], MAJ=[0,4,7];
+  const BACKINGS = {
+    major: {                                   // мажорно-доминантовый блюз (I7 IV7 V7)
+      bars: [0,0,0,0,5,5,0,0,7,5,0,7].map(r=>({root:r, ivs:DOM7})),
+      bass: [0,4,7,9,10,9,7,4],                // буги-вуги
+      drums:'full',
+    },
+    minor: {                                   // минорный блюз: i iv min7, V7 домин., ♭VI мажор
+      bars: [
+        {root:0,ivs:MIN7},{root:0,ivs:MIN7},{root:0,ivs:MIN7},{root:0,ivs:MIN7},
+        {root:5,ivs:MIN7},{root:5,ivs:MIN7},{root:0,ivs:MIN7},{root:0,ivs:MIN7},
+        {root:8,ivs:MAJ}, {root:7,ivs:DOM7}, {root:0,ivs:MIN7},{root:7,ivs:DOM7},
+      ],
+      bass: [0,3,7,10,12,10,7,3],              // минорная линия
+      drums:'full',
+    },
+    drone: {                                   // дрон-вамп на тонике (нейтральная квинта)
+      bars: Array.from({length:12}, ()=>({root:0, ivs:[0,7,12]})),
+      bass: [0,0,0,7,0,0,0,7],                 // педаль тоника/квинта
+      drums:'light',
+    },
+  };
+
+  function playChord(rootSemi,time,dur,ivs){
+    const base=settings.rootMidi-12+rootSemi;
+    ivs.forEach(iv=>{
+      const o=actx.createOscillator();o.type="sawtooth";o.frequency.value=midiToFreq(base+iv);
+      const f=actx.createBiquadFilter();f.type="lowpass";f.frequency.value=1300;
+      const g=actx.createGain();
+      g.gain.setValueAtTime(0,time);g.gain.linearRampToValueAtTime(.055,time+0.04);
+      g.gain.setValueAtTime(.055,time+dur*0.7);g.gain.exponentialRampToValueAtTime(.001,time+dur);
+      o.connect(f);f.connect(g);g.connect(accBus);o.start(time);o.stop(time+dur+0.05);
+    });
+  }
+  function playBass(rootSemi,time,step,pattern){
+    const o=actx.createOscillator();o.type="triangle";
+    o.frequency.value=midiToFreq(settings.rootMidi-24+rootSemi+pattern[step]);
+    const beat=60/settings.bpm,dur=beat*0.42,g=accGain(0);
+    g.gain.setValueAtTime(0,time);g.gain.linearRampToValueAtTime(.5,time+0.01);
+    g.gain.exponentialRampToValueAtTime(.001,time+dur);
+    o.connect(g);o.start(time);o.stop(time+dur+0.05);
+  }
+  function kick(time){const o=actx.createOscillator();o.type="sine";const g=accGain(0);
+    o.frequency.setValueAtTime(150,time);o.frequency.exponentialRampToValueAtTime(48,time+0.12);
+    g.gain.setValueAtTime(.9,time);g.gain.exponentialRampToValueAtTime(.001,time+0.18);
+    o.connect(g);o.start(time);o.stop(time+0.2);}
+  function snare(time){const n=actx.createBufferSource();n.buffer=noiseBuf;
+    const f=actx.createBiquadFilter();f.type="bandpass";f.frequency.value=1800;const g=accGain(0);
+    g.gain.setValueAtTime(.45,time);g.gain.exponentialRampToValueAtTime(.001,time+0.18);
+    n.connect(f);f.connect(g);n.start(time);n.stop(time+0.2);}
+  function hat(time,open){const n=actx.createBufferSource();n.buffer=noiseBuf;
+    const f=actx.createBiquadFilter();f.type="highpass";f.frequency.value=7000;const g=accGain(0);
+    const dur=open?0.12:0.04;g.gain.setValueAtTime(.16,time);g.gain.exponentialRampToValueAtTime(.001,time+dur);
+    n.connect(f);f.connect(g);n.start(time);n.stop(time+dur+0.02);}
+
+  function scheduleEighth(ge,time){
+    const b=BACKINGS[settings.backing];
+    const beat=60/settings.bpm, step=ge%8, off=step%2;
+    const t=time+(off?beat*0.16:0);                 // шаффл
+    const chord=b.bars[Math.floor(ge/8)%12];
+    if(b.drums==='full'){
+      hat(t,off);
+      if(step===0||step===4) kick(t);
+      if(step===2||step===6) snare(t);
+    } else {                                        // light — мягкий пульс для дрона
+      if(off) hat(t,true);
+      if(step===0) kick(t);
+    }
+    playBass(chord.root,t,step,b.bass);
+    if(step===0) playChord(chord.root,time,beat*4*0.95,chord.ivs);
+  }
+  function scheduler(){
+    while(nextNoteTime < actx.currentTime+0.12){
+      scheduleEighth(eighth,nextNoteTime);
+      nextNoteTime += (60/settings.bpm)/2; eighth++;
+    }
+  }
+  function startAcc(){
+    initAudio(); resumeAudio();
+    accOn=true; eighth=0; nextNoteTime=actx.currentTime+0.1;
+    schedTimer=setInterval(scheduler,25);
+    accBtn.classList.add("on"); accBtn.textContent="⏸ Бэк-трек";
+  }
+  function stopAcc(){ accOn=false; clearInterval(schedTimer); schedTimer=null;
+    accBtn.classList.remove("on"); accBtn.textContent="▶ Бэк-трек"; }
+
+  /* ---------- Контролы ---------- */
+  const rootSel=document.getElementById("rootSel");
+  // показываем тональность по корню, но держим звук в удобной 3-й октаве
+  [["A",57],["A#",58],["B",59],["C",60],["C#",61],["D",62],["D#",63],["E",64],
+   ["F",53],["F#",54],["G",55],["G#",56]].forEach(([nm,mid])=>{
+    const o=document.createElement("option");o.value=mid;o.textContent=nm;rootSel.appendChild(o);
+  });
+  rootSel.value=57;
+  rootSel.addEventListener("change",()=>{ settings.rootMidi=+rootSel.value; resetToRoot(); });
+
+  const scaleSel=document.getElementById("scaleSel");
+  scaleSel.addEventListener("change",()=>{ BLUES=SCALES[scaleSel.value]; resetToRoot(); });
+
+  const backSel=document.getElementById("backSel");
+  backSel.addEventListener("change",()=>{ settings.backing=backSel.value; });
+
+  const bpm=document.getElementById("bpm"), bpmVal=document.getElementById("bpmVal");
+  bpm.addEventListener("input",()=>{settings.bpm=+bpm.value; bpmVal.textContent=bpm.value;});
+
+  const tone=document.getElementById("tone");
+  tone.addEventListener("input",()=>{settings.tone=+tone.value; if(leadFilter) leadFilter.frequency.value=settings.tone;});
+
+  const vol=document.getElementById("vol");
+  vol.addEventListener("input",()=>{settings.volume=vol.value/100; if(master) master.gain.value=settings.volume;});
+
+  const accBtn=document.getElementById("accBtn");
+  accBtn.addEventListener("click",()=> accOn?stopAcc():startAcc());
+
+  /* ---------- Старт: сразу включаем бэк-трек ---------- */
+  document.getElementById("startBtn").addEventListener("click",()=>{
+    initAudio(); resumeAudio();
+    document.getElementById("overlay").style.display="none";
+    updateDisplay(indexToMidi(0));
+    startAcc();
+  });
+
+  document.addEventListener("gesturestart",e=>e.preventDefault());
+  document.addEventListener("contextmenu",e=>e.preventDefault());
+})();
+</script>
+</body>
+</html>
