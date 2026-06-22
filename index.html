@@ -247,8 +247,37 @@
 
     const len=actx.sampleRate*1; noiseBuf=actx.createBuffer(1,len,actx.sampleRate);
     const d=noiseBuf.getChannelData(0); for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+
+    unlockAudio();   // разблокировка для iOS (мы внутри пользовательского жеста)
   }
-  function resumeAudio(){ if(actx && actx.state==="suspended") actx.resume(); }
+  function resumeAudio(){ if(actx && actx.state==="suspended") actx.resume(); if(silentEl) silentEl.play().catch(()=>{}); }
+
+  /* ---------- Разблокировка аудио для iOS ---------- */
+  let silentEl=null;
+  function buildSilentWavUrl(){          // 1 секунда тишины WAV (генерится на лету)
+    const rate=8000, n=rate, buf=new ArrayBuffer(44+n*2), dv=new DataView(buf);
+    const w=(o,s)=>{for(let i=0;i<s.length;i++) dv.setUint8(o+i,s.charCodeAt(i));};
+    w(0,'RIFF'); dv.setUint32(4,36+n*2,true); w(8,'WAVE'); w(12,'fmt ');
+    dv.setUint32(16,16,true); dv.setUint16(20,1,true); dv.setUint16(22,1,true);
+    dv.setUint32(24,rate,true); dv.setUint32(28,rate*2,true); dv.setUint16(32,2,true); dv.setUint16(34,16,true);
+    w(36,'data'); dv.setUint32(40,n*2,true);
+    return URL.createObjectURL(new Blob([buf],{type:'audio/wav'}));
+  }
+  function unlockAudio(){
+    // беззвучный буфер прямо в жесте — без этого iOS глушит звук из планировщика
+    try{ const b=actx.createBuffer(1,1,22050), s=actx.createBufferSource();
+         s.buffer=b; s.connect(actx.destination); s.start(0); }catch(e){}
+    // тихий зацикленный <audio> переключает iOS в режим воспроизведения (обход «беззвучного» тумблера)
+    if(!silentEl){
+      try{
+        silentEl=document.createElement('audio');
+        silentEl.src=buildSilentWavUrl(); silentEl.loop=true; silentEl.volume=0.0001;
+        silentEl.setAttribute('playsinline',''); silentEl.setAttribute('webkit-playsinline','');
+        document.body.appendChild(silentEl);
+        silentEl.play().catch(()=>{});
+      }catch(e){}
+    }
+  }
 
   function makeImpulse(sec,decay){
     const rate=actx.sampleRate, n=rate*sec, b=actx.createBuffer(2,n,rate);
@@ -617,6 +646,9 @@
   updateDisplay();   // подписи на клавишах сразу
   document.addEventListener("gesturestart",e=>e.preventDefault());
   document.addEventListener("contextmenu",e=>e.preventDefault());
+  // страховка: возобновляем аудио на любое касание и при возврате на вкладку (iOS любит засыпать)
+  document.addEventListener("touchend",resumeAudio,{passive:true});
+  document.addEventListener("visibilitychange",()=>{ if(!document.hidden) resumeAudio(); });
 })();
 </script>
 </body>
