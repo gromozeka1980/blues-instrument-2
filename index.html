@@ -89,6 +89,11 @@
   .key.bent{box-shadow:0 0 36px var(--accent) !important; border-color:var(--accent) !important;}
   .key.bent .arrow{opacity:1; color:var(--accent);}
   .key.nobend .arrow{opacity:0 !important;}
+  /* даун-бенд: заливка сверху, синий */
+  .key.down .bendfill{top:0; bottom:auto; background:linear-gradient(180deg, rgba(34,184,206,.55), rgba(34,184,206,0));}
+  .key.down.bending{box-shadow:0 0 30px rgba(34,184,206,.7) !important;}
+  .key.down.bent{box-shadow:0 0 36px var(--blue) !important; border-color:var(--blue) !important;}
+  .key.down .arrow{opacity:1; color:var(--blue);}
 
   .extra{display:flex; gap:8px; justify-content:center; padding:0 12px 6px; flex-wrap:wrap;}
   .extra .key{flex:0 0 auto; min-width:88px; max-width:130px; height:40px; border-radius:10px;}
@@ -197,15 +202,21 @@
   let BLUES = SCALES.minor;
   const DEG_NAME = {0:"тоника",2:"секунда",3:"блюз. терция",4:"терция",5:"кварта",
                     6:"блю-нота",7:"квинта",9:"секста",10:"блюз. септима"};
-  // опорные (аккордовые) тоны: тоника(0), терция(4), квинта(7), септима(10)
-  const BEND_TARGETS = {0:"тоники", 4:"терции", 7:"квинты", 10:"септимы"};
-  function bendInfo(step){
-    const pc = BLUES[step];
-    for (const amt of [1,2]){
-      const name = BEND_TARGETS[(pc+amt)%12];
-      if (name) return {amt, name};
-    }
-    return null;
+  // Цели бенда = тоны ЗВУЧАЩЕГО аккорда. Имя ступени по полутону от тоники:
+  const PC_NAME = {0:"тоники",2:"секунды",3:"терции",4:"терции",5:"кварты",
+                   6:"блю-ноты",7:"квинты",9:"сексты",10:"септимы",11:"септимы"};
+  const MIN_TONIC=new Set([0,3,7,10]), MAJ_TONIC=new Set([0,4,7,10]);
+  function currentChordPcs(){
+    if(accOn && liveChordPcs) return liveChordPcs;            // тоны текущего такта аккомпанемента
+    return settings.scale==="major" ? MAJ_TONIC : MIN_TONIC;  // бэк выключен — тоника в текущем ладу
+  }
+  // цели бенда вверх и вниз: ближайший тон аккорда в пределах полутона/тона
+  function bendTargets(step){
+    const pc=BLUES[step], chord=currentChordPcs();
+    let up=null, down=null;
+    for(const amt of [1,2]){ const t=(pc+amt)%12;      if(chord.has(t)){ up  ={amt,name:PC_NAME[t]||"опоры"}; break; } }
+    for(const amt of [1,2]){ const t=(pc-amt+12)%12;   if(chord.has(t)){ down={amt,name:PC_NAME[t]||"опоры"}; break; } }
+    return {up, down};
   }
   const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 
@@ -323,7 +334,7 @@
   }
 
   /* ---------- Голос ---------- */
-  function startVoice(id, freq, maxBend){
+  function startVoice(id, freq, maxUp, maxDown){
     const t=actx.currentTime;
     const o1=actx.createOscillator(), o2=actx.createOscillator();
     o1.type=o2.type="sawtooth";
@@ -337,7 +348,7 @@
     g.gain.exponentialRampToValueAtTime(.2,t+0.3);
     o1.connect(g); o2.connect(g); g.connect(leadBus);
     o1.start(t); o2.start(t); lfo.start(t);
-    const v={o1,o2,lfo,g,baseFreq:freq,dragBend:0,maxBend:maxBend||0};
+    const v={o1,o2,lfo,g,baseFreq:freq,dragBend:0,maxUp:maxUp||0,maxDown:maxDown||0};
     if (kbBend>0) applyBend(v);
     activeVoices.set(id,v);
     return v;
@@ -352,7 +363,9 @@
     v.o1.stop(t+0.36); v.o2.stop(t+0.36); v.lfo.stop(t+0.36);
   }
   function applyBend(v){
-    const semis=Math.min(Math.max(v.dragBend, kbBend), v.maxBend);
+    let b=v.dragBend;
+    if(kbBend>0) b=Math.max(b, kbBend);                     // Shift тянет вверх
+    const semis=Math.max(-v.maxDown, Math.min(v.maxUp, b)); // нельзя перетянуть ни вверх, ни вниз
     const f=v.baseFreq*Math.pow(2,semis/12), t=actx.currentTime;
     v.o1.frequency.setTargetAtTime(f,t,0.025);
     v.o2.frequency.setTargetAtTime(f,t,0.025);
@@ -365,14 +378,14 @@
     currentIndex = clampIndex(currentIndex + offset);
     const midi=indexToMidi(currentIndex);
     const len=BLUES.length, step=((currentIndex%len)+len)%len;
-    const bi=bendInfo(step);
-    const v=startVoice(id, midiToFreq(midi), bi?bi.amt:0);
+    const bt=bendTargets(step);
+    const v=startVoice(id, midiToFreq(midi), bt.up?bt.up.amt:0, bt.down?bt.down.amt:0);
     el.classList.add("active");
-    el.classList.toggle("nobend", !bi);
+    el.classList.toggle("nobend", !(bt.up||bt.down));
     updateDisplay();
     return v;
   }
-  function noteOff(id, el){ stopVoice(id); if(el){el.classList.remove("active","bending","bent","nobend"); el.style.setProperty("--bend",0);} }
+  function noteOff(id, el){ stopVoice(id); if(el){el.classList.remove("active","bending","bent","nobend","down"); el.style.setProperty("--bend",0); const a=el.querySelector(".arrow"); if(a)a.textContent="↑";} }
   function shiftOctave(dir){ currentIndex=clampIndex(currentIndex+dir*BLUES.length); updateDisplay(); }
   function resetToRoot(){ currentIndex=clampIndex(0); updateDisplay(); }
 
@@ -396,11 +409,11 @@
     const len=BLUES.length, step=((currentIndex%len)+len)%len, oct=Math.floor(currentIndex/len);
     const semi=BLUES[step], isBlue=(semi===6);
     elRole.textContent=(DEG_NAME[semi]||"")+(oct? " · окт "+(oct>0?"+":"")+oct : "");
-    const bi=bendInfo(step);
-    if(bi){
-      elTip.textContent = (isBlue ? "★ блю-нота — тяни до " : "↑ тяни до ") + bi.name;
-      elTip.className = isBlue ? "tip blue" : "tip";
-    } else { elTip.textContent=""; elTip.className="tip"; }
+    const bt=bendTargets(step), parts=[];
+    if(bt.up)   parts.push("↑ "+bt.up.name);
+    if(bt.down) parts.push("↓ "+bt.down.name);
+    elTip.textContent = parts.length ? (isBlue?"★ ":"")+"тяни "+parts.join("  ·  ") : "";
+    elTip.className = isBlue ? "tip blue" : "tip";
     refreshKeyLabels();
   }
   // на клавишах: ступень и (фактическая нота), которая прозвучит при нажатии
@@ -468,13 +481,15 @@
   }
   window.addEventListener("pointermove", e=>{
     const p=pointers.get(e.pointerId); if(!p) return;
-    const raw=Math.max(0, (p.startY-e.clientY)/BEND_PX*2);
+    const raw=(p.startY-e.clientY)/BEND_PX*2;             // знак: вверх + / вниз −
     p.voice.dragBend=raw; applyBend(p.voice);
-    const mb=p.voice.maxBend;
-    const frac = mb>0 ? Math.min(raw,mb)/mb : 0;
+    const down=raw<0, mb=down?p.voice.maxDown:p.voice.maxUp, mag=Math.abs(raw);
+    const frac = mb>0 ? Math.min(mag,mb)/mb : 0;
     p.el.style.setProperty("--bend", frac.toFixed(3));
+    p.el.classList.toggle("down", down && mb>0 && frac>0.06);
     p.el.classList.toggle("bending", frac>0.06);
-    p.el.classList.toggle("bent", mb>0 && raw>=mb);
+    p.el.classList.toggle("bent", mb>0 && mag>=mb);
+    const a=p.el.querySelector(".arrow"); if(a) a.textContent = down ? "↓" : "↑";
   });
   function endPointer(e){
     const p=pointers.get(e.pointerId); if(!p) return;
@@ -508,7 +523,7 @@
   /* ====================================================================
      12-тактовый блюз — планировщик с упреждением
      ==================================================================== */
-  let accOn=false, nextNoteTime=0, eighth=0, schedTimer=null;
+  let accOn=false, nextNoteTime=0, eighth=0, schedTimer=null, liveChordPcs=null;
   const accGain=l=>{const g=actx.createGain();g.gain.value=l;g.connect(accBus);return g;};
 
   const DOM7=[0,4,7,10], MIN7=[0,3,7,10], MAJ=[0,4,7];
@@ -577,7 +592,12 @@
       if(step===0) kick(t);
     }
     playBass(chord.root,t,step,b.bass);
-    if(step===0) playChord(chord.root,time,beat*4*0.95,chord.ivs);
+    if(step===0){
+      playChord(chord.root,time,beat*4*0.95,chord.ivs);
+      // цель бенда следует за аккордом: переключаем ровно в момент его звучания
+      const pcs=new Set(chord.ivs.map(iv=>(chord.root+iv)%12));
+      setTimeout(()=>{ liveChordPcs=pcs; updateDisplay(); }, Math.max(0,(time-actx.currentTime)*1000));
+    }
   }
   function scheduler(){
     while(nextNoteTime < actx.currentTime+0.12){
@@ -591,8 +611,8 @@
     schedTimer=setInterval(scheduler,25);
     accBtn.classList.add("on"); accBtn.textContent="⏸ Бэк-трек";
   }
-  function stopAcc(){ accOn=false; clearInterval(schedTimer); schedTimer=null;
-    accBtn.classList.remove("on"); accBtn.textContent="▶ Бэк-трек"; }
+  function stopAcc(){ accOn=false; clearInterval(schedTimer); schedTimer=null; liveChordPcs=null;
+    accBtn.classList.remove("on"); accBtn.textContent="▶ Бэк-трек"; updateDisplay(); }
 
   /* ---------- Контролы ---------- */
   for(const b of document.querySelectorAll(".ladbtn"))
